@@ -25,7 +25,7 @@
 
 Below are the required workflow files used for the CI/CD pipeline.
 
-##`.github/workflows/ci.yml`
+## `.github/workflows/ci.yml`
 
 ```yaml
 name: CI
