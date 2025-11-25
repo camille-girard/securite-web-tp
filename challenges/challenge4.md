@@ -30,7 +30,7 @@ Le but du challenge est d'exploiter une vulnérabilité **CSRF** (Cross-Site Req
 
 5. Dans Burp Suite, on intercepte la requête POST vers `/my-account/change-email`. La requête ressemble à ceci :
 
-   ![Capture BurpSuite](../images/challenge4.png)
+   ![Capture BurpSuite](images/challenge4.png)
 
    On remarque la présence d'un paramètre `csrf` avec une valeur : `4FB7dOtORUgoJ7wbEiZzY2tm7FJ581Xb`
    
@@ -88,7 +88,7 @@ Lorsque carlos visite la page malveillante, son email est automatiquement chang�
 
 Voici un screenshot prouvant le challenge 4 terminé
 
-![Requête CSRF terminee](../images/challenge4.2.png)
+![Requête CSRF terminee](images/challenge4.2.png)
 
 ---
 

@@ -186,7 +186,7 @@ Lorsqu'on utilise le token modifié après l'attente, on obtient :
 
 Le challenge est validé !
 
-![challenge6 resultat](../images/challenge6.1.png)
+![challenge6 resultat](images/challenge6.1.png)
 
 ---
 
@@ -194,7 +194,7 @@ Le challenge est validé !
 
 Voici un screenshot prouvant que le challenge est terminé :
 
-![challenge6 termine](../images/challenge6.png)
+![challenge6 termine](images/challenge6.png)
 
 ---
 

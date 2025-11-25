@@ -41,7 +41,7 @@ Le but du challenge est d'exploiter une vulnérabilité **CSRF** (Cross-Site Req
    email=test%40test.com
    ```
 
-   ![Capture BurpSuite](../images/challenge5.3.png)
+   ![Capture BurpSuite](images/challenge5.3.png)
 
    On remarque qu'il **n'y a pas de token CSRF** dans cette requête. Le site semble se protéger uniquement avec le header **Referer**.
 
@@ -51,7 +51,7 @@ Le but du challenge est d'exploiter une vulnérabilité **CSRF** (Cross-Site Req
 
 9. La requête est acceptée avec un code `HTTP/2 302 Found` !
 
-   ![Capture BurpSuite](../images/challenge5.4.png)
+   ![Capture BurpSuite](images/challenge5.4.png)
 
    Cela révèle la vulnérabilité : le serveur vérifie le header Referer **seulement s'il est présent**. Si le header Referer est **absent**, la requête est acceptée sans vérification !
 
@@ -105,7 +105,7 @@ Lorsque la victime visite la page malveillante, son email est automatiquement ch
 
 Voici un screenshot montrant la requête dans Burp Repeater sans le header Referer :
 
-![Requête sans Referer terminee](../images/challenge5.png)
+![Requête sans Referer terminee](images/challenge5.png)
 
 ---
 
