@@ -88,7 +88,7 @@ On a alors une XSS strockée côté admin qui permet d'exectuer du JS dans le na
 Après avoir soumis le payload dans l’onglet Contact, il faut attendre que robot-admin consulte le message en quelques secondes et aller sur l'onglet private. 
 Un message apparait avec le mot de passe pour validé le challenge
 
-![challenge3_mdp](../images/challenge3.2.png)
+![challenge3_mdp](images/challenge3.2.png)
 
 ---
 
@@ -96,7 +96,7 @@ Un message apparait avec le mot de passe pour validé le challenge
 
 Voici un screenshot la validation du challenge :
 
-![challenge3_termine](../images/challenge3.png)
+![challenge3_termine](images/challenge3.png)
 
 ---
 

@@ -35,7 +35,7 @@ L’application retourne alors le contenu du fichier `/etc/passwd`.
 
 ## Screenshot
 
-![Capture BurpSuite](../images/challenge1.png)
+![Capture BurpSuite](images/challenge1.png)
 
 ---
 
@@ -47,16 +47,16 @@ Pour éviter cette vulnérabilité, il est recommandé :
 
 Utiliser une liste blanche de noms de fichiers prédéfinis. Ne jamais permettre d’introduire `../` dans un paramètre destiné à charger un fichier.
 
-### **2. Ne jamais utiliser directement l’entrée utilisateur pour construire des chemins
+### **2. Ne jamais utiliser directement l’entrée utilisateur pour construire des chemin**
 
 Les chemins d’accès doivent être déterminés côté serveur, pas concaténés avec ce que fournit l’utilisateur.
 
-### **3. Normaliser le chemin avant de l’utiliser
+### **3. Normaliser le chemin avant de l’utiliser**
 
 Passer le chemin final à une fonction comme realpath() ou normalize() pour résoudre ../, ./, encodages, etc.
 Puis vérifier que le chemin résolu reste dans un répertoire autorisé.
 
-### **4. Bloquer explicitement les caractères dangereux, dont le Null Byte (%00)
+### **4. Bloquer explicitement les caractères dangereux, dont le Null Byte (%00)**
 
 Empêcher les caractères susceptibles d’interrompre la comparaison ou détourner la validation.
 
@@ -78,6 +78,5 @@ Ne pas laisser l’utilisateur fournir un nom de fichier. Utiliser une référen
   [https://cheatsheetseries.owasp.org/cheatsheets/Path_Traversal_Cheat_Sheet.html](https://cheatsheetseries.owasp.org/cheatsheets/Path_Traversal_Cheat_Sheet.html)
 
 * NSFOCUS – Path Traversal Attack Protection
-  [https://nsfocusglobal.com/path-traversal-attack-protection/](
-* 
+  [https://nsfocusglobal.com/path-traversal-attack-protection/](https://nsfocusglobal.com/path-traversal-attack-protection/)
 

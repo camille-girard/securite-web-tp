@@ -83,7 +83,7 @@ La connexion fonctionne
 
 Voici un screenshot montrant le résultat avec le contenu en Base64 :
 
-![Base64 affiché](../images/challenge2.png)
+![Base64 affiché](images/challenge2.png)
 
 ---
 
