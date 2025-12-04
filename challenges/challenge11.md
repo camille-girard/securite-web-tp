@@ -255,6 +255,7 @@ Cookie: session=...
   "message": "User status updated successfully"
 }
 ```
+![challenge11 put admin](images/challenge11.1.png)
 
 ### 5.4. Vérification des privilèges admin
 
@@ -295,6 +296,7 @@ Cookie: session=...
   "flag": "RM{4lw4yS_ch3ck_0pt10ns_m3th0d}"
 }
 ```
+![challenge11 get flag](images/challenge11.2.png)
 
 **Succès !** On a récupéré le flag.
 
